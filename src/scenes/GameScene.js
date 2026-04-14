@@ -126,6 +126,10 @@ class GameScene extends Phaser.Scene {
 
     // ── Camera fade in ──────────────────────────────────────────────
     this.cameras.main.fadeIn(250, 0, 0, 0);
+    // Safety: ensure transitioning is false after fade completes
+    this.cameras.main.once('camerafadeincomplete', () => {
+      this.transitioning = false;
+    });
 
     // ── Player ───────────────────────────────────────────────────────
     const spawnX = this._spawnPos ? this._spawnPos.x : 160;
