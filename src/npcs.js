@@ -41,6 +41,15 @@ const NPC_DEFS = [
     ],
     wander: true,
   },
+  {
+    key: 'slayermaster',
+    spritePath: NPC_BASE + 'NinjaDark/SeparateAnim/Walk.png',
+    x: 160, y: 120,
+    name: 'Demon Hunter Kenji',
+    dialog: [],  // handled specially in GameScene
+    wander: false,
+    isSlayerMaster: true,
+  },
 ];
 
 // ── NPC class ─────────────────────────────────────────────────────────────────
@@ -60,18 +69,22 @@ class NPC {
     this.isWalking   = false;
     this.wanderTimer = Phaser.Math.Between(500, 2500);
 
-    // Interaction prompt above this NPC
-    this.prompt = scene.add.text(def.x, def.y - 14, '[E] Talk  [T] Pickpocket', {
-      fontSize: '5px', fontFamily: 'monospace', color: '#ffffff',
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5).setVisible(false);
+    // Interaction prompt (DOM-based)
+    this.promptText = def.isSlayerMaster ? '[E] Talk' : '[E] Talk  [T] Pickpocket';
+    this.promptId = 'npc-' + def.key + '-' + def.x;
+    this.promptVisible = false;
   }
 
   update(delta, playerX, playerY) {
-    // Show/hide interaction prompt based on player proximity
+    // Show/hide interaction prompt (DOM) based on player proximity
     const dist = Phaser.Math.Distance.Between(playerX, playerY, this.sprite.x, this.sprite.y);
-    this.prompt.setPosition(this.sprite.x, this.sprite.y - 14);
-    this.prompt.setVisible(dist < INTERACT_DIST);
+    if (dist < INTERACT_DIST) {
+      showWorldPrompt(this.promptId, this.sprite.x, this.sprite.y, this.promptText);
+      this.promptVisible = true;
+    } else if (this.promptVisible) {
+      hideWorldPrompt(this.promptId);
+      this.promptVisible = false;
+    }
 
     if (!this.def.wander) {
       this.sprite.setTexture(this.def.key + '-walk', IDLE_FRAME[this.dir]);
@@ -115,6 +128,6 @@ class NPC {
 
   destroy() {
     this.sprite.destroy();
-    this.prompt.destroy();
+    hideWorldPrompt(this.promptId);
   }
 }

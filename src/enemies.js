@@ -24,6 +24,19 @@ const ITEM_DEFS = {
                       slot: 'armor',   stats: { defense: 3, maxHp: 20 } },
   'gold-ring':      { name: 'Gold Ring',      key: 'gold-ring',      path: ITEM_BASE + 'Resource/GemYellow.png',
                       slot: 'accessory', stats: { attack: 2, defense: 2 } },
+  // Dropped weapons
+  'stick':          { name: 'Stick',          key: 'stick',          path: ITEM_BASE + 'Weapons/Stick/Sprite.png',
+                      slot: 'weapon', stats: { attack: 1 } },
+  'club':           { name: 'Club',           key: 'club',           path: ITEM_BASE + 'Weapons/Club/Sprite.png',
+                      slot: 'weapon', stats: { attack: 2 } },
+  'sai':            { name: 'Sai',            key: 'sai',            path: ITEM_BASE + 'Weapons/Sai/Sprite.png',
+                      slot: 'weapon', stats: { attack: 6 } },
+  'rapier':         { name: 'Rapier',         key: 'rapier',         path: ITEM_BASE + 'Weapons/Rapier/Sprite.png',
+                      slot: 'weapon', stats: { attack: 7 } },
+  'nunchaku':       { name: 'Nunchaku',       key: 'nunchaku',       path: ITEM_BASE + 'Weapons/Ninjaku/Sprite.png',
+                      slot: 'weapon', stats: { attack: 12 } },
+  'lance':          { name: 'Lance',          key: 'lance',          path: ITEM_BASE + 'Weapons/Lance/Sprite.png',
+                      slot: 'weapon', stats: { attack: 14 } },
   // Fish (raw)
   'raw-shrimp':     { name: 'Raw Shrimp',     key: 'raw-shrimp',     path: ITEM_BASE + 'Food/Shrimp.png' },
   'raw-fish':       { name: 'Raw Fish',        key: 'raw-fish',       path: ITEM_BASE + 'Food/Fish.png' },
@@ -54,8 +67,34 @@ const ITEM_DEFS = {
                       slot: 'armor', stats: { defense: 8 } },
   'silver-ring':    { name: 'Silver Ring',     key: 'silver-ring',    path: ITEM_BASE + 'Treasure/SilverCoin.png',
                       slot: 'accessory', stats: { attack: 3, defense: 3 } },
+  'silver-sword':   { name: 'Silver Sword',    key: 'silver-sword',   path: ITEM_BASE + 'Weapons/Rapier/Sprite.png',
+                      slot: 'weapon', stats: { attack: 16 } },
+  'magic-wand':     { name: 'Magic Wand',     key: 'magic-wand',     path: ITEM_BASE + 'Weapons/MagicWand/Sprite.png',
+                      slot: 'weapon', stats: { attack: 20 } },
+  'silver-armor':   { name: 'Silver Armor',   key: 'silver-armor',   path: ITEM_BASE + 'Resource/BarSilver.png',
+                      slot: 'armor', stats: { defense: 12, maxHp: 15 } },
+  'gold-armor':     { name: 'Gold Armor',     key: 'gold-armor',     path: ITEM_BASE + 'Resource/BarGold.png',
+                      slot: 'armor', stats: { defense: 16, maxHp: 30 } },
   'gold-necklace':  { name: 'Gold Necklace',   key: 'gold-necklace',  path: ITEM_BASE + 'Treasure/GoldCup.png',
                       slot: 'accessory', stats: { attack: 5, defense: 5, maxHp: 30 } },
+  // Herbalism potions (consumable)
+  'focus-tonic':    { name: 'Focus Tonic',     key: 'focus-tonic',    path: ITEM_BASE + 'Potion/WaterPot.png',
+                      consumable: true, buff: 'attack', buffAmount: 8, buffDuration: 30000 },
+  'resolve-salve':  { name: 'Resolve Salve',   key: 'resolve-salve',  path: ITEM_BASE + 'Potion/MilkPot.png',
+                      consumable: true, buff: 'defense', buffAmount: 8, buffDuration: 30000 },
+  'harmony-tea':    { name: 'Harmony Tea',     key: 'harmony-tea',    path: ITEM_BASE + 'Potion/EmptyPot.png',
+                      consumable: true, healAmount: 60 },
+  'oni-elixir':     { name: 'Oni Elixir',      key: 'oni-elixir',     path: ITEM_BASE + 'Potion/LifePot.png',
+                      consumable: true, buff: 'attack', buffAmount: 15, buffDuration: 45000 },
+  // Crafting materials
+  'feather':        { name: 'Feather',         key: 'feather',        path: ITEM_BASE + 'Resource/feather.png' },
+  // Crafted accessories
+  'bone-charm':     { name: 'Bone Charm',      key: 'bone-charm',     path: ITEM_BASE + 'Treasure/SilverKey.png',
+                      slot: 'accessory', stats: { attack: 1, defense: 1, maxHp: 10 } },
+  'demon-amulet':   { name: 'Demon Amulet',    key: 'demon-amulet',   path: ITEM_BASE + 'Treasure/GoldKey.png',
+                      slot: 'accessory', stats: { attack: 4, defense: 4, maxHp: 20 } },
+  'spirit-talisman':{ name: 'Spirit Talisman', key: 'spirit-talisman',path: ITEM_BASE + 'Scroll/ScrollThunder.png',
+                      slot: 'accessory', stats: { attack: 7, defense: 7, maxHp: 40 } },
   // Thieving
   'silver-coin':    { name: 'Silver Coin',     key: 'silver-coin',    path: ITEM_BASE + 'Treasure/SilverCoin.png' },
 };
@@ -65,20 +104,27 @@ const DROP_TABLES = {
   slime:  [
     { item: 'slime-gel',    chance: 0.75 },
     { item: 'gold-coin',    chance: 0.30 },
+    { item: 'stick',        chance: 0.20 },
     { item: 'gold-ring',    chance: 0.05 },
   ],
   skull:  [
     { item: 'bone',         chance: 0.70 },
     { item: 'gold-coin',    chance: 0.35 },
     { item: 'red-gem',      chance: 0.10 },
+    { item: 'club',         chance: 0.18 },
     { item: 'rusty-sword',  chance: 0.15 },
+    { item: 'rapier',       chance: 0.06 },
+    { item: 'nunchaku',     chance: 0.03 },
     { item: 'iron-shield',  chance: 0.12 },
   ],
   spirit: [
     { item: 'spirit-essence', chance: 0.70 },
     { item: 'gold-coin',      chance: 0.30 },
     { item: 'life-potion',    chance: 0.12 },
+    { item: 'sai',             chance: 0.10 },
     { item: 'katana',         chance: 0.06 },
+    { item: 'lance',          chance: 0.03 },
+    { item: 'feather',        chance: 0.25 },
     { item: 'spirit-ward',    chance: 0.08 },
     { item: 'gold-ring',      chance: 0.05 },
   ],
@@ -268,6 +314,9 @@ class Enemy {
     GameState.player.totalExp += this.def.exp;
     this.scene.sound.play('sfx-kill', { volume: 0.45 });
 
+    // Slayer task tracking
+    onEnemyKilled(this.scene, this.def.key);
+
     // Roll drops
     this._rollDrops();
 
@@ -405,17 +454,8 @@ class GroundItem {
       }
     }
 
-    // Float pickup text
-    const txt = this.scene.add.text(this.sprite.x, this.sprite.y - 6, this.itemDef.name, {
-      fontSize: '5px', fontFamily: 'monospace', color: '#ffffff',
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setDepth(50);
-
-    this.scene.tweens.add({
-      targets: txt, y: txt.y - 14, alpha: 0,
-      duration: 800, ease: 'Power1',
-      onComplete: () => txt.destroy(),
-    });
+    // Float pickup text (DOM)
+    domFloat(this.sprite.x, this.sprite.y - 6, this.itemDef.name, '#ffffff');
 
     this.sprite.destroy();
   }

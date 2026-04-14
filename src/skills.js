@@ -29,10 +29,7 @@ class FishingSpot {
     }
     this.sprite.play('water-ripple-anim');
 
-    this.prompt = scene.add.text(x, y - 12, '[E] Fish', {
-      fontSize: '5px', fontFamily: 'monospace', color: '#88ccff',
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5).setVisible(false).setDepth(50);
+    this.promptText = '[E] Fish'; this.promptId = 'station-' + x + '-' + y; this.promptVisible = false;
 
     this.isFishing = false;
     this.fishTimer = 0;
@@ -42,7 +39,13 @@ class FishingSpot {
     const dist = Phaser.Math.Distance.Between(playerX, playerY, this.x, this.y);
     const nearby = dist < FISH_CATCH_RADIUS;
 
-    this.prompt.setVisible(nearby && !this.isFishing);
+    if (nearby && !this.isFishing) {
+      showWorldPrompt(this.promptId, this.x, this.y, this.promptText);
+      this.promptVisible = true;
+    } else if (this.promptVisible) {
+      hideWorldPrompt(this.promptId);
+      this.promptVisible = false;
+    }
 
     if (this.isFishing) {
       this.fishTimer -= delta;
@@ -100,15 +103,7 @@ class FishingSpot {
   }
 
   _floatText(msg, color) {
-    const txt = this.scene.add.text(this.x, this.y - 8, msg, {
-      fontSize: '5px', fontFamily: 'monospace', color,
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setDepth(50);
-    this.scene.tweens.add({
-      targets: txt, y: txt.y - 16, alpha: 0,
-      duration: 900, ease: 'Power1',
-      onComplete: () => txt.destroy(),
-    });
+    domFloat(this.x, this.y - 8, msg, color);
   }
 }
 
@@ -205,16 +200,65 @@ class MiningRock {
   }
 
   _floatText(msg, color) {
-    const txt = this.scene.add.text(this.x, this.y - 10, msg, {
-      fontSize: '5px', fontFamily: 'monospace', color,
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setDepth(50);
-    this.scene.tweens.add({
-      targets: txt, y: txt.y - 16, alpha: 0,
-      duration: 900, ease: 'Power1',
-      onComplete: () => txt.destroy(),
-    });
+    domFloat(this.x, this.y - 8, msg, color);
   }
+}
+
+// ── Firemaking ───────────────────────────────────────────────────────────────
+const FIRE_BASE_DURATION = 30000; // 30s base burn time
+const FIRE_XP = 15;
+
+function attemptFiremaking(scene, playerX, playerY) {
+  const inv = GameState.inventory;
+
+  // Find wood in inventory
+  const woodIdx = inv.findIndex(s => s && s.name === 'Wood');
+  if (woodIdx === -1) {
+    _firemakingFloat(scene, playerX, playerY, 'No wood!', '#ff6666');
+    return null;
+  }
+
+  // Consume 1 wood
+  inv[woodIdx].qty -= 1;
+  if (inv[woodIdx].qty <= 0) inv[woodIdx] = null;
+
+  // Award XP
+  GameState.skills.firemaking.totalExp += FIRE_XP;
+  const gained = GameState.checkSkillLevelUp('firemaking');
+
+  _firemakingFloat(scene, playerX, playerY, 'Lit a fire!', '#ffaa44');
+  scene.sound.play('sfx-accept', { volume: 0.35 });
+
+  if (gained > 0) {
+    _firemakingFloat(scene, playerX, playerY - 12, `Firemaking LV${GameState.skills.firemaking.level}!`, '#ffee44');
+  }
+
+  // Duration scales with level: 30s base + 1s per level
+  const duration = FIRE_BASE_DURATION + GameState.skills.firemaking.level * 1000;
+
+  // Create a temporary cooking fire
+  const fire = new CookingFire(scene, playerX, playerY + 12);
+  fire.isTemporary = true;
+
+  // Burn out after duration
+  scene.time.delayedCall(duration, () => {
+    if (fire.sprite) {
+      scene.tweens.add({
+        targets: fire.sprite, alpha: 0, duration: 500,
+        onComplete: () => {
+          fire.sprite.destroy();
+          hideWorldPrompt(fire.promptId);
+          fire.sprite = null;
+        },
+      });
+    }
+  });
+
+  return fire;
+}
+
+function _firemakingFloat(scene, x, y, msg, color) {
+  domFloat(x, y - 10, msg, color);
 }
 
 // ── Cooking ──────────────────────────────────────────────────────────────────
@@ -244,16 +288,20 @@ class CookingFire {
     }
     this.sprite.play('fire-burn');
 
-    this.prompt = scene.add.text(x, y - 14, '[E] Cook', {
-      fontSize: '5px', fontFamily: 'monospace', color: '#ffaa44',
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5).setVisible(false).setDepth(50);
+    this.promptText = '[E] Cook'; this.promptId = 'station-' + x + '-' + y; this.promptVisible = false;
   }
 
   update(delta, playerX, playerY, ePressed) {
+    if (!this.sprite) return; // burned out
     const dist = Phaser.Math.Distance.Between(playerX, playerY, this.x, this.y);
     const nearby = dist < COOK_RADIUS;
-    this.prompt.setVisible(nearby);
+    if (nearby) {
+      showWorldPrompt(this.promptId, this.x, this.y, this.promptText);
+      this.promptVisible = true;
+    } else if (this.promptVisible) {
+      hideWorldPrompt(this.promptId);
+      this.promptVisible = false;
+    }
 
     if (nearby && ePressed) {
       this._cook();
@@ -307,15 +355,7 @@ class CookingFire {
   }
 
   _floatText(msg, color) {
-    const txt = this.scene.add.text(this.x, this.y - 8, msg, {
-      fontSize: '5px', fontFamily: 'monospace', color,
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setDepth(50);
-    this.scene.tweens.add({
-      targets: txt, y: txt.y - 16, alpha: 0,
-      duration: 900, ease: 'Power1',
-      onComplete: () => txt.destroy(),
-    });
+    domFloat(this.x, this.y - 8, msg, color);
   }
 }
 
@@ -331,8 +371,16 @@ const SMITH_RECIPES = [
     slot: 'armor', stats: { defense: 4 } },
   { oreKey: 'ore-iron',   oreCount: 3, result: 'iron-armor',    resultName: 'Iron Armor',    levelReq: 15, xp: 55,
     slot: 'armor', stats: { defense: 8 } },
+  { oreKey: 'ore-silver', oreCount: 2, result: 'silver-sword',  resultName: 'Silver Sword',  levelReq: 20, xp: 55,
+    slot: 'weapon', stats: { attack: 16 } },
+  { oreKey: 'ore-silver', oreCount: 3, result: 'silver-armor',  resultName: 'Silver Armor',  levelReq: 25, xp: 65,
+    slot: 'armor', stats: { defense: 12, maxHp: 15 } },
   { oreKey: 'ore-silver', oreCount: 2, result: 'silver-ring',   resultName: 'Silver Ring',   levelReq: 20, xp: 50,
     slot: 'accessory', stats: { attack: 3, defense: 3 } },
+  { oreKey: 'ore-gold',   oreCount: 2, result: 'magic-wand',    resultName: 'Magic Wand',    levelReq: 30, xp: 85,
+    slot: 'weapon', stats: { attack: 20 } },
+  { oreKey: 'ore-gold',   oreCount: 3, result: 'gold-armor',    resultName: 'Gold Armor',    levelReq: 35, xp: 100,
+    slot: 'armor', stats: { defense: 16, maxHp: 30 } },
   { oreKey: 'ore-gold',   oreCount: 2, result: 'gold-necklace', resultName: 'Gold Necklace', levelReq: 30, xp: 80,
     slot: 'accessory', stats: { attack: 5, defense: 5, maxHp: 30 } },
 ];
@@ -345,16 +393,19 @@ class SmithingAnvil {
 
     this.sprite = scene.add.image(x, y, 'anvil').setOrigin(0.5).setDepth(y);
 
-    this.prompt = scene.add.text(x, y - 14, '[E] Smith', {
-      fontSize: '5px', fontFamily: 'monospace', color: '#aaaacc',
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5).setVisible(false).setDepth(50);
+    this.promptText = '[E] Smith'; this.promptId = 'station-' + x + '-' + y; this.promptVisible = false;
   }
 
   update(delta, playerX, playerY, ePressed) {
     const dist = Phaser.Math.Distance.Between(playerX, playerY, this.x, this.y);
     const nearby = dist < SMITH_RADIUS;
-    this.prompt.setVisible(nearby);
+    if (nearby) {
+      showWorldPrompt(this.promptId, this.x, this.y, this.promptText);
+      this.promptVisible = true;
+    } else if (this.promptVisible) {
+      hideWorldPrompt(this.promptId);
+      this.promptVisible = false;
+    }
 
     if (nearby && ePressed) {
       this._smith();
@@ -413,15 +464,7 @@ class SmithingAnvil {
   }
 
   _floatText(msg, color) {
-    const txt = this.scene.add.text(this.x, this.y - 8, msg, {
-      fontSize: '5px', fontFamily: 'monospace', color,
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setDepth(50);
-    this.scene.tweens.add({
-      targets: txt, y: txt.y - 16, alpha: 0,
-      duration: 900, ease: 'Power1',
-      onComplete: () => txt.destroy(),
-    });
+    domFloat(this.x, this.y - 8, msg, color);
   }
 }
 
@@ -489,13 +532,433 @@ function attemptPickpocket(scene, npc) {
 }
 
 function _thieveFloat(scene, x, y, msg, color) {
-  const txt = scene.add.text(x, y - 8, msg, {
-    fontSize: '5px', fontFamily: 'monospace', color,
-    stroke: '#000000', strokeThickness: 2,
-  }).setOrigin(0.5, 1).setDepth(50);
-  scene.tweens.add({
-    targets: txt, y: txt.y - 16, alpha: 0,
-    duration: 900, ease: 'Power1',
-    onComplete: () => txt.destroy(),
-  });
+  domFloat(x, y - 8, msg, color);
+}
+
+// ── Meditation (Prayer) ──────────────────────────────────────────────────────
+const MEDITATE_RADIUS  = 22;
+const MEDITATE_COOLDOWN = 8000;
+
+const MEDITATE_BUFFS = [
+  { name: 'Focus',   stat: 'attack',  amount: 5,  duration: 30000, color: '#ff8844', levelReq: 1,  xp: 15 },
+  { name: 'Resolve', stat: 'defense', amount: 5,  duration: 30000, color: '#4488ff', levelReq: 1,  xp: 15 },
+  { name: 'Harmony', stat: 'hpRegen', amount: 2,  duration: 20000, color: '#44ff88', levelReq: 5,  xp: 20 },
+  { name: 'Inner Flame', stat: 'attack',  amount: 10, duration: 25000, color: '#ffaa22', levelReq: 15, xp: 30 },
+  { name: 'Iron Will',   stat: 'defense', amount: 10, duration: 25000, color: '#6688ff', levelReq: 15, xp: 30 },
+  { name: 'Zen',         stat: 'hpRegen', amount: 5,  duration: 30000, color: '#88ffaa', levelReq: 25, xp: 45 },
+];
+
+class MeditationShrine {
+  constructor(scene, x, y) {
+    this.scene = scene;
+    this.x = x;
+    this.y = y;
+    this.cooldown = 0;
+
+    this.sprite = scene.add.image(x, y, 'shrine-stone').setOrigin(0.5).setDepth(y);
+
+    this.promptText = '[E] Meditate'; this.promptId = 'station-' + x + '-' + y; this.promptVisible = false;
+  }
+
+  update(delta, playerX, playerY, ePressed) {
+    if (this.cooldown > 0) this.cooldown -= delta;
+
+    const dist = Phaser.Math.Distance.Between(playerX, playerY, this.x, this.y);
+    const nearby = dist < MEDITATE_RADIUS;
+    if (nearby && this.cooldown <= 0) {
+      showWorldPrompt(this.promptId, this.x, this.y, this.promptText);
+      this.promptVisible = true;
+    } else if (this.promptVisible) {
+      hideWorldPrompt(this.promptId);
+      this.promptVisible = false;
+    }
+
+    if (nearby && ePressed && this.cooldown <= 0) {
+      this._meditate();
+    }
+  }
+
+  _meditate() {
+    this.cooldown = MEDITATE_COOLDOWN;
+    const medLevel = GameState.skills.meditation.level;
+
+    // Pick the best available buff (cycles through them)
+    const available = MEDITATE_BUFFS.filter(b => medLevel >= b.levelReq);
+    const buff = available[Math.floor(Math.random() * available.length)];
+
+    // Apply buff
+    if (buff.stat === 'hpRegen') {
+      // HP regen: heal over time
+      GameState.buffs.hpRegen = buff.amount;
+      GameState.buffs.buffTimer = buff.duration;
+    } else {
+      GameState.buffs[buff.stat] = buff.amount;
+      GameState.buffs.buffTimer = buff.duration;
+      GameState.recalcStats();
+    }
+
+    // Award XP
+    GameState.skills.meditation.totalExp += buff.xp;
+    const gained = GameState.checkSkillLevelUp('meditation');
+
+    this._floatText(buff.name + '!', buff.color);
+    this.scene.sound.play('sfx-levelup', { volume: 0.3 });
+
+    if (gained > 0) {
+      this._floatText(`Meditation LV${GameState.skills.meditation.level}!`, '#ffee44');
+    }
+  }
+
+  _floatText(msg, color) {
+    domFloat(this.x, this.y - 8, msg, color);
+  }
+}
+
+// ── Slayer ────────────────────────────────────────────────────────────────────
+const SLAYER_TASKS = [
+  { enemy: 'skull',  count: 3, xpReward: 40,  levelReq: 1  },
+  { enemy: 'spirit', count: 3, xpReward: 45,  levelReq: 1  },
+  { enemy: 'skull',  count: 5, xpReward: 70,  levelReq: 5  },
+  { enemy: 'spirit', count: 5, xpReward: 80,  levelReq: 5  },
+  { enemy: 'skull',  count: 8, xpReward: 120, levelReq: 10 },
+  { enemy: 'spirit', count: 8, xpReward: 130, levelReq: 15 },
+  { enemy: 'skull',  count: 12,xpReward: 200, levelReq: 20 },
+  { enemy: 'spirit', count: 12,xpReward: 220, levelReq: 25 },
+];
+
+function getSlayerTask() {
+  const level = GameState.skills.slayer.level;
+  const available = SLAYER_TASKS.filter(t => level >= t.levelReq);
+  const task = available[Math.floor(Math.random() * available.length)];
+  GameState.slayerTask = { enemy: task.enemy, remaining: task.count, xpReward: task.xpReward };
+  return GameState.slayerTask;
+}
+
+// Called from Enemy._die when an enemy is killed
+function onEnemyKilled(scene, enemyKey) {
+  const task = GameState.slayerTask;
+  if (!task || task.enemy !== enemyKey) return;
+
+  task.remaining--;
+  if (task.remaining <= 0) {
+    // Task complete!
+    GameState.skills.slayer.totalExp += task.xpReward;
+    const gained = GameState.checkSkillLevelUp('slayer');
+
+    _slayerFloat(scene, 'Slayer task complete!', '#ff4488');
+    scene.sound.play('sfx-levelup', { volume: 0.4 });
+
+    if (gained > 0) {
+      _slayerFloat(scene, `Slayer LV${GameState.skills.slayer.level}!`, '#ffee44');
+    }
+
+    GameState.slayerTask = null;
+  } else {
+    _slayerFloat(scene, `${task.remaining} ${task.enemy}s left`, '#ff88aa');
+  }
+}
+
+function _slayerFloat(scene, msg, color) {
+  const px = scene.player ? scene.player.x : 160;
+  const py = scene.player ? scene.player.y - 24 : 100;
+  domFloat(px, py, msg, color);
+}
+
+// ── Herbalism ────────────────────────────────────────────────────────────────
+const HERB_RADIUS = 22;
+
+const HERB_RECIPES = [
+  { ingredients: [{ key: 'slime-gel', qty: 2 }],
+    result: 'focus-tonic',  resultName: 'Focus Tonic',  levelReq: 1,  xp: 20 },
+  { ingredients: [{ key: 'bone', qty: 2 }],
+    result: 'resolve-salve', resultName: 'Resolve Salve', levelReq: 1,  xp: 20 },
+  { ingredients: [{ key: 'spirit-essence', qty: 2 }],
+    result: 'harmony-tea',  resultName: 'Harmony Tea',  levelReq: 5,  xp: 30 },
+  { ingredients: [{ key: 'slime-gel', qty: 2 }, { key: 'spirit-essence', qty: 2 }],
+    result: 'oni-elixir',   resultName: 'Oni Elixir',   levelReq: 15, xp: 55 },
+];
+
+class HerbalismMortar {
+  constructor(scene, x, y) {
+    this.scene = scene;
+    this.x = x;
+    this.y = y;
+
+    this.sprite = scene.add.image(x, y, 'mortar').setOrigin(0.5).setDepth(y);
+
+    this.promptText = '[E] Brew'; this.promptId = 'station-' + x + '-' + y; this.promptVisible = false;
+  }
+
+  update(delta, playerX, playerY, ePressed) {
+    const dist = Phaser.Math.Distance.Between(playerX, playerY, this.x, this.y);
+    const nearby = dist < HERB_RADIUS;
+    if (nearby) {
+      showWorldPrompt(this.promptId, this.x, this.y, this.promptText);
+      this.promptVisible = true;
+    } else if (this.promptVisible) {
+      hideWorldPrompt(this.promptId);
+      this.promptVisible = false;
+    }
+
+    if (nearby && ePressed) {
+      this._brew();
+    }
+  }
+
+  _brew() {
+    const herbLevel = GameState.skills.herbalism.level;
+    const inv = GameState.inventory;
+
+    for (const recipe of HERB_RECIPES) {
+      if (herbLevel < recipe.levelReq) continue;
+
+      // Check if we have all ingredients
+      let canCraft = true;
+      for (const ing of recipe.ingredients) {
+        let count = 0;
+        for (const item of inv) {
+          if (item && item.key === ing.key) count += item.qty;
+        }
+        if (count < ing.qty) { canCraft = false; break; }
+      }
+      if (!canCraft) continue;
+
+      // Consume ingredients
+      for (const ing of recipe.ingredients) {
+        let toConsume = ing.qty;
+        for (let i = 0; i < inv.length && toConsume > 0; i++) {
+          if (inv[i] && inv[i].key === ing.key) {
+            const take = Math.min(inv[i].qty, toConsume);
+            inv[i].qty -= take;
+            toConsume -= take;
+            if (inv[i].qty <= 0) inv[i] = null;
+          }
+        }
+      }
+
+      // Add result — look up from ITEM_DEFS for full properties
+      const def = ITEM_DEFS[recipe.result];
+      const existing = inv.find(s => s && s.key === recipe.result);
+      if (existing) {
+        existing.qty += 1;
+      } else {
+        const slot = inv.findIndex(s => s === null);
+        if (slot !== -1) {
+          const item = { name: recipe.resultName, key: recipe.result, qty: 1 };
+          if (def && def.consumable) { item.consumable = true; item.healAmount = def.healAmount || 0; }
+          if (def && def.buff) { item.buff = def.buff; item.buffAmount = def.buffAmount; item.buffDuration = def.buffDuration; item.consumable = true; }
+          inv[slot] = item;
+        }
+      }
+
+      GameState.skills.herbalism.totalExp += recipe.xp;
+      const gained = GameState.checkSkillLevelUp('herbalism');
+
+      this._floatText(`Brewed ${recipe.resultName}`, '#88dd88');
+      this.scene.sound.play('sfx-accept', { volume: 0.3 });
+
+      if (gained > 0) {
+        this._floatText(`Herbalism LV${GameState.skills.herbalism.level}!`, '#ffee44');
+      }
+      return;
+    }
+
+    this._floatText('Need ingredients', '#ff6666');
+  }
+
+  _floatText(msg, color) {
+    domFloat(this.x, this.y - 8, msg, color);
+  }
+}
+
+// ── Crafting ─────────────────────────────────────────────────────────────────
+const CRAFT_RADIUS = 22;
+
+const CRAFT_RECIPES = [
+  { ingredients: [{ key: 'bone', qty: 3 }, { key: 'feather', qty: 1 }],
+    result: 'bone-charm', resultName: 'Bone Charm', levelReq: 1, xp: 25,
+    slot: 'accessory', stats: { attack: 1, defense: 1, maxHp: 10 } },
+  { ingredients: [{ key: 'red-gem', qty: 2 }, { key: 'bone', qty: 2 }],
+    result: 'demon-amulet', resultName: 'Demon Amulet', levelReq: 10, xp: 50,
+    slot: 'accessory', stats: { attack: 4, defense: 4, maxHp: 20 } },
+  { ingredients: [{ key: 'spirit-essence', qty: 3 }, { key: 'red-gem', qty: 2 }, { key: 'feather', qty: 2 }],
+    result: 'spirit-talisman', resultName: 'Spirit Talisman', levelReq: 25, xp: 90,
+    slot: 'accessory', stats: { attack: 7, defense: 7, maxHp: 40 } },
+];
+
+class CraftingBench {
+  constructor(scene, x, y) {
+    this.scene = scene;
+    this.x = x;
+    this.y = y;
+
+    this.sprite = scene.add.image(x, y, 'craft-bench').setOrigin(0.5).setDepth(y);
+
+    this.promptText = '[E] Craft'; this.promptId = 'station-' + x + '-' + y; this.promptVisible = false;
+  }
+
+  update(delta, playerX, playerY, ePressed) {
+    const dist = Phaser.Math.Distance.Between(playerX, playerY, this.x, this.y);
+    const nearby = dist < CRAFT_RADIUS;
+    if (nearby) {
+      showWorldPrompt(this.promptId, this.x, this.y, this.promptText);
+      this.promptVisible = true;
+    } else if (this.promptVisible) {
+      hideWorldPrompt(this.promptId);
+      this.promptVisible = false;
+    }
+
+    if (nearby && ePressed) {
+      this._craft();
+    }
+  }
+
+  _craft() {
+    const craftLevel = GameState.skills.crafting.level;
+    const inv = GameState.inventory;
+
+    for (const recipe of CRAFT_RECIPES) {
+      if (craftLevel < recipe.levelReq) continue;
+
+      let canCraft = true;
+      for (const ing of recipe.ingredients) {
+        let count = 0;
+        for (const item of inv) {
+          if (item && item.key === ing.key) count += item.qty;
+        }
+        if (count < ing.qty) { canCraft = false; break; }
+      }
+      if (!canCraft) continue;
+
+      // Consume ingredients
+      for (const ing of recipe.ingredients) {
+        let toConsume = ing.qty;
+        for (let i = 0; i < inv.length && toConsume > 0; i++) {
+          if (inv[i] && inv[i].key === ing.key) {
+            const take = Math.min(inv[i].qty, toConsume);
+            inv[i].qty -= take;
+            toConsume -= take;
+            if (inv[i].qty <= 0) inv[i] = null;
+          }
+        }
+      }
+
+      // Add crafted equipment (doesn't stack)
+      const freeSlot = inv.findIndex(s => s === null);
+      if (freeSlot !== -1) {
+        inv[freeSlot] = {
+          name: recipe.resultName, key: recipe.result, qty: 1,
+          slot: recipe.slot, stats: { ...recipe.stats },
+        };
+      }
+
+      GameState.skills.crafting.totalExp += recipe.xp;
+      const gained = GameState.checkSkillLevelUp('crafting');
+
+      this._floatText(`Crafted ${recipe.resultName}`, '#ddaa66');
+      this.scene.sound.play('sfx-equip', { volume: 0.4 });
+
+      if (gained > 0) {
+        this._floatText(`Crafting LV${GameState.skills.crafting.level}!`, '#ffee44');
+      }
+      return;
+    }
+
+    this._floatText('Need materials', '#ff6666');
+  }
+
+  _floatText(msg, color) {
+    domFloat(this.x, this.y - 8, msg, color);
+  }
+}
+
+// ── Agility ──────────────────────────────────────────────────────────────────
+const AGILITY_MARKER_RADIUS = 16;
+const AGILITY_XP_PER_POST   = 8;
+const AGILITY_LAP_BONUS     = 30;
+const AGILITY_SPEED_PER_LEVEL = 0.5;
+
+function getAgilitySpeedBonus() {
+  return (GameState.skills.agility.level - 1) * AGILITY_SPEED_PER_LEVEL;
+}
+
+class AgilityCourse {
+  constructor(scene, waypoints) {
+    this.scene = scene;
+    this.waypoints = waypoints;
+    this.currentIdx = 0;
+    this.markers = [];
+
+    waypoints.forEach((wp, i) => {
+      const marker = scene.add.image(wp.x, wp.y, 'agility-post').setOrigin(0.5).setDepth(wp.y);
+      // DOM label for post number
+      const labelId = 'agility-label-' + i;
+      showWorldPrompt(labelId, wp.x, wp.y, `${i + 1}`);
+      this.markers.push({ sprite: marker, labelId, x: wp.x, y: wp.y });
+    });
+
+    // Guide text (DOM)
+    this.guideId = 'agility-guide';
+    showWorldPrompt(this.guideId, 160, 232, 'Run to the highlighted post!');
+
+    // Highlight the first target
+    this._highlightCurrent();
+  }
+
+  update(delta, playerX, playerY) {
+    const target = this.markers[this.currentIdx];
+    const dist = Phaser.Math.Distance.Between(playerX, playerY, target.x, target.y);
+
+    if (dist < AGILITY_MARKER_RADIUS) {
+      this._reachPost();
+    }
+  }
+
+  _reachPost() {
+    // Award XP for reaching this post
+    GameState.skills.agility.totalExp += AGILITY_XP_PER_POST;
+
+    const marker = this.markers[this.currentIdx];
+    // Flash the reached post
+    this.scene.tweens.add({
+      targets: marker.sprite, alpha: 0.3, duration: 100, yoyo: true,
+    });
+
+    this._floatText(marker.x, marker.y, `+${AGILITY_XP_PER_POST} Agility XP`, '#44dddd');
+    this.scene.sound.play('sfx-accept', { volume: 0.25 });
+
+    this.currentIdx++;
+
+    // Completed a full lap
+    if (this.currentIdx >= this.waypoints.length) {
+      this.currentIdx = 0;
+      GameState.skills.agility.totalExp += AGILITY_LAP_BONUS;
+      this._floatText(160, 100, `Lap complete! +${AGILITY_LAP_BONUS} bonus XP`, '#ffee44');
+      this.scene.sound.play('sfx-levelup', { volume: 0.35 });
+    }
+
+    const gained = GameState.checkSkillLevelUp('agility');
+    if (gained > 0) {
+      this._floatText(160, 80, `Agility LV${GameState.skills.agility.level}!`, '#ffee44');
+    }
+
+    this._highlightCurrent();
+  }
+
+  _highlightCurrent() {
+    this.markers.forEach((m, i) => {
+      if (i === this.currentIdx) {
+        m.sprite.setTint(0x44ffff);
+      } else {
+        m.sprite.clearTint();
+      }
+    });
+
+    // Update guide
+    showWorldPrompt(this.guideId, 160, 232, `Run to post ${this.currentIdx + 1}!`);
+  }
+
+  _floatText(x, y, msg, color) {
+    domFloat(x, y - 8, msg, color);
+  }
 }

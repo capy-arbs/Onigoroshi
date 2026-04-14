@@ -52,6 +52,15 @@ class GameScene extends Phaser.Scene {
     this.load.image('mine-rock',       'assets/tiles/mine-rock.png');
     this.load.image('mine-rock-empty', 'assets/tiles/mine-rock-empty.png');
     this.load.image('anvil',           SKB + 'Items/Tool/Anvil.png');
+    this.load.image('shrine-stone',    SKB + 'Items/Scroll/ScrollRock.png');
+    this.load.image('mortar',          SKB + 'Items/Object/Gourd.png');
+    this.load.image('craft-bench',     SKB + 'Items/Object/CrateEmpty.png');
+    this.load.image('agility-post',    'assets/tiles/agility-post.png');
+    this.load.image('house1',          'assets/tiles/house1.png');
+    this.load.image('house2',          'assets/tiles/house2.png');
+    this.load.image('house3',          'assets/tiles/house3.png');
+    this.load.image('torii',           'assets/tiles/torii.png');
+    this.load.image('water',           'assets/tiles/water.png');
 
     // ── Audio ────────────────────────────────────────────────────────
     this.load.audio('bgm',          AUDIO_BASE + 'Musics/1 - Adventure Begin.ogg');
@@ -80,6 +89,36 @@ class GameScene extends Phaser.Scene {
     const ground = this.add.tileSprite(0, 0, 320, 240, area.tile).setOrigin(0, 0);
     if (area.tint) ground.setTint(area.tint);
 
+    // ── Decorations (buildings, pond, etc.) ─────────────────────────
+    this.solidGroup = this.physics.add.staticGroup();
+
+    (area.decorations || []).forEach(d => {
+      if (d.tile) {
+        // Tiled rectangle (e.g. pond)
+        for (let tx = 0; tx < d.w; tx += 16) {
+          for (let ty = 0; ty < d.h; ty += 16) {
+            this.add.image(d.x + tx + 8, d.y + ty + 8, d.tile).setDepth(0.1);
+          }
+        }
+        // Pond collision — block the whole area
+        if (d.solid !== false) {
+          const blocker = this.add.zone(d.x + d.w / 2, d.y + d.h / 2, d.w, d.h);
+          this.physics.add.existing(blocker, true);
+          this.solidGroup.add(blocker);
+        }
+      } else {
+        const img = this.add.image(d.x, d.y, d.key).setOrigin(0.5, 1).setDepth(d.y);
+        // Building collision
+        if (d.solid !== false) {
+          const bw = img.width;
+          const bh = img.height;
+          const blocker = this.add.zone(d.x, d.y - bh / 2, bw, bh);
+          this.physics.add.existing(blocker, true);
+          this.solidGroup.add(blocker);
+        }
+      }
+    });
+
     // ── Camera fade in ──────────────────────────────────────────────
     this.cameras.main.fadeIn(250, 0, 0, 0);
 
@@ -90,6 +129,9 @@ class GameScene extends Phaser.Scene {
     this.player.setDepth(1);
     this.player.setCollideWorldBounds(false);
 
+    // Collide with solid decorations (buildings, pond)
+    this.physics.add.collider(this.player, this.solidGroup);
+
     this.cursors  = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.iKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.I);
@@ -97,6 +139,7 @@ class GameScene extends Phaser.Scene {
     this.eKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.sKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.S);
     this.tKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+    this.fKey     = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.F);
     this.pickpocketCooldown = 0;
 
     // ── Spawn area entities from area data ───────────────────────────
@@ -111,6 +154,10 @@ class GameScene extends Phaser.Scene {
     this.miningRocks  = (area.miningRocks || []).map(s => new MiningRock(this, s.x, s.y));
     this.cookingFires = (area.cookingFires || []).map(s => new CookingFire(this, s.x, s.y));
     this.anvils       = (area.anvils || []).map(s => new SmithingAnvil(this, s.x, s.y));
+    this.shrines      = (area.shrines || []).map(s => new MeditationShrine(this, s.x, s.y));
+    this.mortars      = (area.mortars || []).map(s => new HerbalismMortar(this, s.x, s.y));
+    this.craftBenches = (area.craftBenches || []).map(s => new CraftingBench(this, s.x, s.y));
+    this.agilityCourse = area.agilityCourse ? new AgilityCourse(this, area.agilityCourse) : null;
 
     if (!this.anims.exists('slash')) {
       this.anims.create({
@@ -136,28 +183,32 @@ class GameScene extends Phaser.Scene {
       this.sound.add('bgm', { loop: true, volume: 0.3 }).play();
     }
 
-    // ── HUD ──────────────────────────────────────────────────────────
-    this.hudBg  = this.add.graphics().setScrollFactor(0).setDepth(10);
-    this.hudFg  = this.add.graphics().setScrollFactor(0).setDepth(10);
-    this.hudText = this.add.text(7, 7, '', {
-      fontSize: '5px', fontFamily: 'monospace', color: '#ffaaaa',
-    }).setScrollFactor(0).setDepth(10);
+    // ── HUD is now DOM-based (see main.js + index.html) ────────────
+    updateDOMHud();
 
-    // ── Area name flash ──────────────────────────────────────────────
-    const areaLabel = this.add.text(160, 30, area.name, {
-      fontSize: '10px', fontFamily: 'monospace', color: '#ffffff',
-      stroke: '#000000', strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(50).setAlpha(0);
-
-    this.tweens.add({
-      targets: areaLabel, alpha: 1, duration: 400, yoyo: true, hold: 800,
-      onComplete: () => areaLabel.destroy(),
-    });
+    // ── Area name flash (DOM) ────────────────────────────────────────
+    domFloat(160, 40, area.name, '#ffffff', 2000);
   }
 
   update(time, delta) {
     // ── HUD ──────────────────────────────────────────────────────────
     this._updateHUD();
+
+    // ── Buff ticking (meditation) ───────────────────────────────────
+    if (!GameState.buffs) GameState.buffs = { attack: 0, defense: 0, hpRegen: 0, buffTimer: 0 };
+    const buffs = GameState.buffs;
+    if (buffs.buffTimer > 0) {
+      buffs.buffTimer -= delta;
+      // HP regen tick
+      if (buffs.hpRegen > 0) {
+        GameState.player.hp = Math.min(GameState.player.maxHp,
+          GameState.player.hp + buffs.hpRegen * (delta / 1000));
+      }
+      if (buffs.buffTimer <= 0) {
+        buffs.attack = 0; buffs.defense = 0; buffs.hpRegen = 0; buffs.buffTimer = 0;
+        GameState.recalcStats();
+      }
+    }
 
     // ── E key (single check, NPC dialog takes priority) ────────────
     let eJustDown = Phaser.Input.Keyboard.JustDown(this.eKey);
@@ -175,6 +226,13 @@ class GameScene extends Phaser.Scene {
 
     if (nearbyNPC && eJustDown) {
       eJustDown = false; // consumed by NPC
+
+      // Slayer Master — assign or report task
+      if (nearbyNPC.def.isSlayerMaster) {
+        this._handleSlayerMaster(nearbyNPC);
+        return;
+      }
+
       this.scene.pause();
       this.scene.launch('DialogScene', {
         name: nearbyNPC.def.name, spriteKey: nearbyNPC.def.key + '-walk', dialog: nearbyNPC.def.dialog,
@@ -218,8 +276,13 @@ class GameScene extends Phaser.Scene {
 
     // ── Skill stations ───────────────────────────────────────────────
     this.fishingSpots.forEach(s => s.update(delta, this.player.x, this.player.y, eJustDown));
+    this.cookingFires = this.cookingFires.filter(s => !!s.sprite);
     this.cookingFires.forEach(s => s.update(delta, this.player.x, this.player.y, eJustDown));
     this.anvils.forEach(s => s.update(delta, this.player.x, this.player.y, eJustDown));
+    this.shrines.forEach(s => s.update(delta, this.player.x, this.player.y, eJustDown));
+    this.mortars.forEach(s => s.update(delta, this.player.x, this.player.y, eJustDown));
+    this.craftBenches.forEach(s => s.update(delta, this.player.x, this.player.y, eJustDown));
+    if (this.agilityCourse) this.agilityCourse.update(delta, this.player.x, this.player.y);
 
     // ── Overlay screens ───────────────────────────────────────────────
     if (Phaser.Input.Keyboard.JustDown(this.iKey)) {
@@ -236,6 +299,12 @@ class GameScene extends Phaser.Scene {
       GameState.save();
       this._floatTextOnPlayer('Game Saved', '#88ff88');
       this.sound.play('sfx-accept', { volume: 0.3 });
+    }
+
+    // ── Firemaking (F key) ───────────────────────────────────────────
+    if (Phaser.Input.Keyboard.JustDown(this.fKey)) {
+      const fire = attemptFiremaking(this, this.player.x, this.player.y);
+      if (fire) this.cookingFires.push(fire);
     }
 
     // ── Attack ────────────────────────────────────────────────────────
@@ -309,11 +378,12 @@ class GameScene extends Phaser.Scene {
     }
 
     let moving = false, newDir = this.lastDir;
+    const spd = SPEED + getAgilitySpeedBonus();
 
-    if (this.cursors.left.isDown)       { this.player.setVelocityX(-SPEED); newDir = 'left';  moving = true; }
-    else if (this.cursors.right.isDown) { this.player.setVelocityX(SPEED);  newDir = 'right'; moving = true; }
-    else if (this.cursors.up.isDown)    { this.player.setVelocityY(-SPEED); newDir = 'up';    moving = true; }
-    else if (this.cursors.down.isDown)  { this.player.setVelocityY(SPEED);  newDir = 'down';  moving = true; }
+    if (this.cursors.left.isDown)       { this.player.setVelocityX(-spd); newDir = 'left';  moving = true; }
+    else if (this.cursors.right.isDown) { this.player.setVelocityX(spd);  newDir = 'right'; moving = true; }
+    else if (this.cursors.up.isDown)    { this.player.setVelocityY(-spd); newDir = 'up';    moving = true; }
+    else if (this.cursors.down.isDown)  { this.player.setVelocityY(spd);  newDir = 'down';  moving = true; }
 
     if (moving) {
       if (newDir !== this.lastDir) { this.lastDir = newDir; this.animFrame = 0; this.animTimer = 0; }
@@ -369,15 +439,32 @@ class GameScene extends Phaser.Scene {
   }
 
   _floatTextOnPlayer(msg, color = '#ffffff') {
-    const txt = this.add.text(this.player.x, this.player.y - 16, msg, {
-      fontSize: '7px', fontFamily: 'monospace', color,
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setDepth(50);
+    domFloat(this.player.x, this.player.y - 16, msg, color);
+  }
 
-    this.tweens.add({
-      targets: txt, y: txt.y - 22, alpha: 0,
-      duration: 1200, ease: 'Power1',
-      onComplete: () => txt.destroy(),
+  _handleSlayerMaster(npc) {
+    const task = GameState.slayerTask;
+    let dialog;
+
+    if (!task) {
+      // Assign new task
+      const newTask = getSlayerTask();
+      dialog = [
+        "Greetings, demon hunter.",
+        `Your task: slay ${newTask.remaining} ${newTask.enemy}s.`,
+        "Return to me when the deed is done.",
+      ];
+    } else {
+      // Has active task
+      dialog = [
+        `You still have ${task.remaining} ${task.enemy}s to slay.`,
+        "Do not return until your duty is fulfilled.",
+      ];
+    }
+
+    this.scene.pause();
+    this.scene.launch('DialogScene', {
+      name: npc.def.name, spriteKey: npc.def.key + '-walk', dialog,
     });
   }
 
@@ -409,33 +496,6 @@ class GameScene extends Phaser.Scene {
   }
 
   _updateHUD() {
-    const p   = GameState.player;
-    const BAR_W = 50, BAR_H = 5;
-    const BX = 6, BY = 6;
-
-    this.hudBg.clear();
-    this.hudFg.clear();
-
-    // HP bar
-    this.hudBg.fillStyle(0x440000);
-    this.hudBg.fillRoundedRect(BX, BY, BAR_W, BAR_H, 1);
-    this.hudFg.fillStyle(0xcc2222);
-    this.hudFg.fillRoundedRect(BX, BY, Math.max(0, (p.hp / p.maxHp) * BAR_W), BAR_H, 1);
-
-    // EXP bar
-    const expY = BY + BAR_H + 2;
-    const currentLevelXP = p.level > 1 ? XP_TABLE[p.level - 1] : 0;
-    const nextLevelXP = p.level < MAX_LEVEL ? XP_TABLE[p.level] : currentLevelXP;
-    const expProgress = nextLevelXP > currentLevelXP
-      ? (p.totalExp - currentLevelXP) / (nextLevelXP - currentLevelXP)
-      : 1;
-
-    this.hudBg.fillStyle(0x1a1a00);
-    this.hudBg.fillRoundedRect(BX, expY, BAR_W, BAR_H, 1);
-    this.hudFg.fillStyle(0xaaaa00);
-    this.hudFg.fillRoundedRect(BX, expY, Math.max(0, expProgress * BAR_W), BAR_H, 1);
-
-    const areaName = AREAS[GameState.currentArea].name;
-    this.hudText.setText(`LV${p.level}  ${p.hp}/${p.maxHp}  ${areaName}`);
+    updateDOMHud();
   }
 }

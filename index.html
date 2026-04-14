@@ -7,26 +7,186 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; }
-    canvas { image-rendering: pixelated; }
+    canvas { image-rendering: pixelated; position: relative; z-index: 1; }
+
+    /* ── Shared overlay styles ───────────────────────────────────────── */
+    #game-wrapper { position: relative; }
+    .dom-overlay {
+      position: absolute; top: 0; left: 0;
+      width: 1280px; height: 960px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #fff; z-index: 100;
+      pointer-events: none;
+    }
+    .dom-overlay * { pointer-events: none; }
+    .dom-overlay.interactive { pointer-events: auto; }
+    .dom-overlay.interactive * { pointer-events: auto; }
+
+    /* ── HUD overlay (always visible) ────────────────────────────────── */
+    #hud-bars { position: absolute; top: 16px; left: 20px; }
+    #hud-bars .bar-row { display: flex; align-items: center; margin-bottom: 4px; }
+    #hud-bars .bar-label { font-size: 14px; font-weight: 700; width: 28px; text-shadow: 1px 1px 2px #000, -1px -1px 2px #000; }
+    #hud-bars .bar-bg { width: 180px; height: 16px; background: #440000; border-radius: 3px; overflow: hidden; position: relative; }
+    #hud-bars .bar-bg.exp { background: #1a1a00; }
+    #hud-bars .bar-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
+    #hud-bars .bar-fill.hp { background: #cc2222; }
+    #hud-bars .bar-fill.exp { background: #aaaa00; }
+    #hud-bars .bar-text { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; text-shadow: 1px 1px 1px #000; }
+    #hud-bars .bar-text.hp { color: #ffaaaa; }
+    #hud-bars .bar-text.exp { color: #dddd88; }
+    #hud-info { position: absolute; top: 16px; right: 20px; text-align: right; font-size: 14px; font-weight: 700; text-shadow: 1px 1px 2px #000, -1px -1px 2px #000; color: #f5deb3; }
+    #hud-area { color: #ccbb99; font-size: 12px; font-weight: 400; margin-top: 2px; }
+
+    /* Float text */
+    #float-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; }
+    .float-text { position: absolute; font-size: 16px; font-weight: 700; text-shadow: 1px 1px 2px #000, -1px -1px 2px #000; white-space: nowrap; transform: translate(-50%, -100%); animation: float-up 1.2s ease-out forwards; }
+    @keyframes float-up { 0% { opacity:1; transform:translate(-50%,-100%); } 100% { opacity:0; transform:translate(-50%,calc(-100% - 60px)); } }
+
+    /* ── Screen overlays (hidden by default) ─────────────────────────── */
+    .screen-overlay {
+      position: absolute; top: 0; left: 0; width: 1280px; height: 960px;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      z-index: 200; display: none;
+    }
+    .screen-overlay.active { display: flex; align-items: center; justify-content: center; }
+    .screen-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); }
+    .screen-panel {
+      position: relative; background: #2d1f10; border: 2px solid #8b4513;
+      border-radius: 12px; padding: 20px; color: #f5deb3;
+      min-width: 500px;
+    }
+    .screen-panel h2 { font-size: 18px; text-align: center; margin-bottom: 12px; color: #f5deb3; border-bottom: 1px solid #5c3317; padding-bottom: 8px; }
+    .screen-panel .hint { text-align: center; color: #6b5030; font-size: 12px; margin-top: 12px; }
+
+    /* ── Character screen ─────────────────────────────────────────────── */
+    #char-screen .char-top { display: flex; gap: 16px; margin-bottom: 12px; }
+    #char-screen .char-portrait { width: 80px; height: 80px; background: #0d0805; border: 1px solid #8b4513; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+    #char-screen .char-portrait img { image-rendering: pixelated; width: 48px; height: 48px; }
+    #char-screen .char-info { flex: 1; }
+    #char-screen .char-name { font-size: 16px; font-weight: 700; }
+    #char-screen .char-level { font-size: 13px; color: #c8a870; }
+    .stat-row { display: flex; align-items: center; margin: 4px 0; }
+    .stat-label { width: 36px; font-size: 12px; color: #8b7355; font-weight: 600; }
+    .stat-bar-bg { flex: 1; height: 10px; background: #1a1008; border-radius: 3px; overflow: hidden; margin: 0 8px; }
+    .stat-bar-fill { height: 100%; border-radius: 3px; }
+    .stat-bar-fill.hp { background: #cc2222; }
+    .stat-bar-fill.exp { background: #aaaa00; }
+    .stat-bar-fill.atk { background: #cc6633; }
+    .stat-bar-fill.def { background: #3366cc; }
+    .stat-bar-fill.spd { background: #33cc66; }
+    .stat-val { font-size: 12px; color: #c8a870; min-width: 50px; text-align: right; }
+    .stat-val .bonus { color: #88cc66; }
+
+    #char-screen .skills-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; }
+    .skill-row { display: flex; align-items: center; }
+    .skill-name { font-size: 12px; flex: 1; }
+    .skill-lv { font-size: 12px; color: #c8a870; margin-left: 8px; }
+    .skill-bar-bg { width: 100%; height: 4px; background: #1a1008; border-radius: 2px; margin-top: 1px; }
+    .skill-bar-fill { height: 100%; background: #8b6523; border-radius: 2px; }
+    .skills-header { font-size: 13px; color: #8b7355; margin: 8px 0 4px; grid-column: 1 / -1; border-top: 1px solid #5c3317; padding-top: 6px; }
+
+    /* ── Dialog screen ────────────────────────────────────────────────── */
+    #dialog-screen { align-items: flex-end; padding-bottom: 40px; }
+    #dialog-screen .screen-bg { background: rgba(0,0,0,0.3); }
+    #dialog-screen .screen-panel { min-width: 900px; max-width: 1100px; padding: 16px 20px; display: flex; gap: 16px; }
+    #dialog-screen .dialog-portrait { width: 72px; height: 72px; background: #0d0805; border: 1px solid #8b4513; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    #dialog-screen .dialog-portrait img { image-rendering: pixelated; width: 48px; height: 48px; }
+    #dialog-screen .dialog-body { flex: 1; }
+    #dialog-screen .dialog-name { font-size: 14px; font-weight: 700; color: #f5deb3; margin-bottom: 4px; }
+    #dialog-screen .dialog-text { font-size: 14px; color: #ddd; line-height: 1.4; }
+    #dialog-screen .dialog-hint { font-size: 11px; color: #8b7355; text-align: right; margin-top: 6px; }
+
+    /* ── Game Over screen ─────────────────────────────────────────────── */
+    #gameover-screen .screen-panel { text-align: center; min-width: 400px; }
+    #gameover-screen .death-title { font-size: 42px; color: #cc2222; font-weight: 700; margin-bottom: 8px; }
+    #gameover-screen .death-sub { font-size: 14px; color: #aa6666; margin-bottom: 16px; }
+    #gameover-screen .death-restart { font-size: 16px; color: #aaa; }
+
+    /* ── Inventory screen ──────────────────────────────────────────────── */
+    #inv-screen .inv-grid {
+      display: grid; grid-template-columns: repeat(5, 56px); gap: 6px;
+      margin-bottom: 12px;
+    }
+    .inv-slot {
+      width: 56px; height: 56px; background: #0d0805; border: 1px solid #5a3c20;
+      border-radius: 4px; position: relative; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .inv-slot:hover { border-color: #c8a870; background: #1a1208; }
+    .inv-slot img { image-rendering: pixelated; width: 32px; height: 32px; }
+    .inv-slot .qty {
+      position: absolute; bottom: 1px; right: 3px;
+      font-size: 11px; font-weight: 700; color: #fff;
+      text-shadow: 1px 1px 1px #000;
+    }
+    .equip-section { display: flex; gap: 12px; align-items: flex-start; margin-top: 8px; }
+    .equip-slots { display: flex; gap: 6px; }
+    .equip-slot {
+      width: 56px; height: 56px; background: #0d0805; border: 1px solid #8b4513;
+      border-radius: 4px; position: relative; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+    }
+    .equip-slot:hover { border-color: #c8a870; background: #1a1208; }
+    .equip-slot img { image-rendering: pixelated; width: 32px; height: 32px; }
+    .equip-slot .slot-label { font-size: 10px; color: #5a3c20; }
+    .equip-stats { font-size: 12px; color: #aaa; line-height: 1.6; }
+    .equip-stats .bonus { color: #88cc66; }
+    #inv-tooltip {
+      font-size: 12px; color: #ccbb88; text-align: center;
+      min-height: 16px; margin-top: 8px;
+    }
+
+    /* ── NPC/station prompts ──────────────────────────────────────────── */
+    #prompt-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; }
+    .world-prompt {
+      position: absolute; font-size: 13px; font-weight: 600;
+      color: #fff; background: rgba(0,0,0,0.6); padding: 2px 8px;
+      border-radius: 4px; white-space: nowrap;
+      transform: translate(-50%, -100%);
+      text-shadow: 1px 1px 1px #000;
+    }
   </style>
 </head>
 <body>
+  <div id="game-wrapper">
+    <div id="hud-overlay" class="dom-overlay">
+      <div id="hud-bars">
+        <div class="bar-row">
+          <span class="bar-label" style="color:#ffaaaa">HP</span>
+          <div class="bar-bg"><div class="bar-fill hp" id="hp-fill" style="width:100%"></div><div class="bar-text hp" id="hp-text">100/100</div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label" style="color:#dddd88">XP</span>
+          <div class="bar-bg exp"><div class="bar-fill exp" id="exp-fill" style="width:0%"></div><div class="bar-text exp" id="exp-text">0/83</div></div>
+        </div>
+      </div>
+      <div id="hud-info"><div id="hud-level">LV 1</div><div id="hud-area">Village</div></div>
+      <div id="float-container"></div>
+      <div id="prompt-container"></div>
+    </div>
+
+    <!-- Inventory screen -->
+    <div id="inv-screen" class="screen-overlay"></div>
+    <!-- Character screen -->
+    <div id="char-screen" class="screen-overlay"></div>
+    <!-- Dialog screen -->
+    <div id="dialog-screen" class="screen-overlay"></div>
+    <!-- Game Over screen -->
+    <div id="gameover-screen" class="screen-overlay"></div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-  <!-- Shared state -->
   <script src="src/gamestate.js"></script>
-  <!-- NPC + enemy definitions -->
   <script src="src/npcs.js"></script>
   <script src="src/enemies.js"></script>
   <script src="src/trees.js"></script>
   <script src="src/areas.js"></script>
   <script src="src/skills.js"></script>
-  <!-- Scenes -->
   <script src="src/scenes/GameScene.js"></script>
   <script src="src/scenes/InventoryScene.js"></script>
   <script src="src/scenes/CharacterScene.js"></script>
   <script src="src/scenes/DialogScene.js"></script>
   <script src="src/scenes/GameOverScene.js"></script>
-  <!-- Boot -->
   <script src="src/main.js"></script>
 </body>
 </html>

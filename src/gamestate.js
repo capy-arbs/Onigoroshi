@@ -51,12 +51,24 @@ const GameState = {
   // Equipment: weapon, armor, accessory — null = empty, object = item
   equipment: { weapon: null, armor: null, accessory: null },
 
+  // Active buffs from meditation (temporary, not saved)
+  buffs: { attack: 0, defense: 0, hpRegen: 0, buffTimer: 0 },
+
+  // Slayer task: { enemy: 'skull', remaining: 5, xpReward: 50 } or null
+  slayerTask: null,
+
   skills: {
     woodcutting: { level: 1, totalExp: 0 },
     fishing:     { level: 1, totalExp: 0 },
     mining:      { level: 1, totalExp: 0 },
     cooking:     { level: 1, totalExp: 0 },
     smithing:    { level: 1, totalExp: 0 },
+    firemaking:  { level: 1, totalExp: 0 },
+    meditation:  { level: 1, totalExp: 0 },
+    slayer:      { level: 1, totalExp: 0 },
+    herbalism:   { level: 1, totalExp: 0 },
+    crafting:    { level: 1, totalExp: 0 },
+    agility:     { level: 1, totalExp: 0 },
     thieving:    { level: 1, totalExp: 0 },
   },
 
@@ -103,8 +115,8 @@ const GameState = {
   // Recalculate effective stats (call after equip/unequip or level-up)
   recalcStats() {
     const p = this.player;
-    p.attack  = p.baseAttack  + (p.level - 1) * 3  + this.equipBonus('attack');
-    p.defense = p.baseDefense + (p.level - 1) * 2  + this.equipBonus('defense');
+    p.attack  = p.baseAttack  + (p.level - 1) * 3  + this.equipBonus('attack') + this.buffs.attack;
+    p.defense = p.baseDefense + (p.level - 1) * 2  + this.equipBonus('defense') + this.buffs.defense;
     p.speed   = p.baseSpeed   + (p.level - 1) * 1  + this.equipBonus('speed');
     p.maxHp   = p.baseHp      + (p.level - 1) * 12 + this.equipBonus('maxHp');
     if (p.hp > p.maxHp) p.hp = p.maxHp;
@@ -153,6 +165,7 @@ const GameState = {
       inventory: this.inventory,
       equipment: this.equipment,
       skills: JSON.parse(JSON.stringify(this.skills)),
+      slayerTask: this.slayerTask,
     };
     try {
       localStorage.setItem('onigoroshi-save', JSON.stringify(data));
@@ -177,6 +190,7 @@ const GameState = {
       for (const key of Object.keys(data.skills)) {
         this.skills[key] = data.skills[key];
       }
+      this.slayerTask = data.slayerTask || null;
 
       // Recalc derived stats from level + equipment
       this.recalcStats();

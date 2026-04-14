@@ -6,28 +6,45 @@ const AREAS = {
   village: {
     name: 'Village',
     tile: 'grass', tint: null,
+    decorations: [
+      // Buildings along top
+      { key: 'house1', x: 42,  y: 50  },   // left cottage
+      { key: 'house2', x: 278, y: 50  },   // right brick house
+      { key: 'house3', x: 42,  y: 110 },   // left shop
+      // Pond (bottom-right)
+      { tile: 'water', x: 230, y: 180, w: 64, h: 48 },
+    ],
     npcs: [
-      { defIndex: 0, x: 70,  y: 65  },  // Villager
-      { defIndex: 1, x: 230, y: 85  },  // Elder Hiroshi
-      { defIndex: 2, x: 150, y: 185 },  // Princess Yuki
+      { defIndex: 0, x: 100, y: 160 },  // Villager
+      { defIndex: 1, x: 270, y: 115 },  // Elder Hiroshi
+      { defIndex: 2, x: 180, y: 165 },  // Princess Yuki
+      { defIndex: 3, x: 160, y: 80  },  // Demon Hunter Kenji (Slayer Master)
     ],
     enemies: [],
     trees: [
-      { x: 48,  y: 48  },
-      { x: 262, y: 52  },
-      { x: 105, y: 210 },
+      { x: 130, y: 50  },
+      { x: 190, y: 50  },
+      { x: 25,  y: 195 },
     ],
     fishingSpots: [
-      { x: 290, y: 210 },
+      { x: 250, y: 176 },
     ],
     cookingFires: [
-      { x: 200, y: 170 },
+      { x: 160, y: 135 },
     ],
     miningRocks: [],
     anvils: [],
+    shrines: [],
+    mortars: [
+      { x: 100, y: 130 },
+    ],
+    craftBenches: [
+      { x: 220, y: 130 },
+    ],
     exits: {
       north: 'forest',
       east:  'shrine',
+      south: 'dojo',
     },
   },
 
@@ -58,6 +75,9 @@ const AREAS = {
     cookingFires: [],
     miningRocks: [],
     anvils: [],
+    shrines: [],
+    mortars: [],
+    craftBenches: [],
     exits: {
       south: 'village',
     },
@@ -87,8 +107,39 @@ const AREAS = {
     anvils: [
       { x: 150, y: 140 },
     ],
+    shrines: [
+      { x: 40,  y: 50 },
+      { x: 280, y: 50 },
+    ],
+    mortars: [],
+    craftBenches: [],
     exits: {
       west: 'village',
+    },
+  },
+  dojo: {
+    name: 'Dojo Grounds',
+    tile: 'grass', tint: 0xccbb88,
+    npcs: [],
+    enemies: [],
+    trees: [],
+    fishingSpots: [],
+    cookingFires: [],
+    miningRocks: [],
+    anvils: [],
+    shrines: [],
+    mortars: [],
+    craftBenches: [],
+    agilityCourse: [
+      { x: 40,  y: 40  },  // 1 - top left
+      { x: 280, y: 40  },  // 2 - top right
+      { x: 280, y: 200 },  // 3 - bottom right
+      { x: 160, y: 130 },  // 4 - center
+      { x: 40,  y: 200 },  // 5 - bottom left
+      { x: 160, y: 40  },  // 6 - top center (finish → loops)
+    ],
+    exits: {
+      north: 'village',
     },
   },
 };

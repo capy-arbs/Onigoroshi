@@ -88,15 +88,6 @@ class Tree {
   }
 
   _floatText(scene, msg, color = '#88dd88') {
-    const txt = scene.add.text(this.x, this.y - 20, msg, {
-      fontSize: '6px', fontFamily: 'monospace', color,
-      stroke: '#000000', strokeThickness: 2,
-    }).setOrigin(0.5, 1).setDepth(50);
-
-    scene.tweens.add({
-      targets: txt, y: txt.y - 18, alpha: 0,
-      duration: 900, ease: 'Power1',
-      onComplete: () => txt.destroy(),
-    });
+    domFloat(this.x, this.y - 20, msg, color);
   }
 }
