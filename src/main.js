@@ -42,6 +42,10 @@ function updateDOMHud() {
   document.getElementById('hud-level').textContent = `LV ${p.level}`;
   const area = AREAS[GameState.currentArea];
   document.getElementById('hud-area').textContent = area ? area.name : '';
+
+  // Gold display
+  const goldEl = document.getElementById('hud-gold');
+  if (goldEl) goldEl.textContent = `Gold: ${GameState.gold}`;
 }
 
 function domFloat(gameX, gameY, msg, color, duration) {
@@ -367,4 +371,115 @@ function showWorldPrompt(id, gameX, gameY, text) {
 function hideWorldPrompt(id) {
   const el = _activePrompts[id];
   if (el) el.style.display = 'none';
+}
+
+// ── Shop Screen (DOM) ────────────────────────────────────────────────────────
+let _shopOpen = false;
+
+function showShopScreen() {
+  if (_shopOpen) return;
+  _shopOpen = true;
+
+  const el = document.createElement('div');
+  el.id = 'shop-screen';
+  el.style.cssText = 'position:absolute;inset:0;z-index:300;pointer-events:auto;display:flex;align-items:center;justify-content:center;font-family:Segoe UI,system-ui,sans-serif;';
+
+  _renderShop(el);
+  document.getElementById('hud-overlay').appendChild(el);
+
+  const closeHandler = (e) => {
+    if (e.key === 'Escape') { hideShopScreen(); document.removeEventListener('keydown', closeHandler); }
+  };
+  document.addEventListener('keydown', closeHandler);
+}
+
+function _renderShop(el) {
+  if (!el) el = document.getElementById('shop-screen');
+  if (!el) return;
+
+  const itemsHtml = SHOP_ITEMS.map(si => {
+    const def = ITEM_DEFS[si.key];
+    if (!def) return '';
+    const canAfford = GameState.gold >= si.price;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid #332211;">
+      <span style="color:#f5deb3;font-size:13px;">${def.name}</span>
+      <button onclick="buyShopItem('${si.key}',${si.price})" ${!canAfford?'disabled':''} style="background:${canAfford?'#2d1f10':'#1a1008'};color:${canAfford?'#ddcc44':'#555'};border:1px solid ${canAfford?'#8b4513':'#333'};border-radius:4px;padding:3px 10px;cursor:${canAfford?'pointer':'default'};font-size:12px;">${si.price} gold</button>
+    </div>`;
+  }).join('');
+
+  // Sell items from inventory
+  const inv = GameState.inventory;
+  let sellHtml = '';
+  inv.forEach((item, idx) => {
+    if (!item || item.slot) return; // can't sell equipment or empty
+    const sellPrice = Math.max(1, Math.floor((ITEM_DEFS[item.key]?.value || 5)));
+    sellHtml += `<div style="display:flex;justify-content:space-between;align-items:center;padding:3px 0;border-bottom:1px solid #332211;">
+      <span style="color:#c8a870;font-size:12px;">${item.name} x${item.qty}</span>
+      <button onclick="sellShopItem(${idx},${sellPrice})" style="background:#1a2a1a;color:#44cc44;border:1px solid #44cc44;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;">Sell (${sellPrice}g)</button>
+    </div>`;
+  });
+
+  el.innerHTML = `
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,0.7);" onclick="hideShopScreen()"></div>
+    <div style="position:relative;background:#2d1f10;border:2px solid #8b4513;border-radius:10px;padding:20px;min-width:350px;max-width:450px;max-height:90vh;overflow-y:auto;color:#f5deb3;">
+      <h2 style="text-align:center;font-size:16px;margin-bottom:10px;border-bottom:1px solid #5c3317;padding-bottom:8px;">Merchant Tanaka</h2>
+      <div style="display:flex;gap:16px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;color:#ddcc44;margin-bottom:6px;">BUY</div>
+          ${itemsHtml}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:13px;color:#44cc44;margin-bottom:6px;">SELL</div>
+          ${sellHtml || '<div style="color:#666;font-size:12px;">Nothing to sell</div>'}
+        </div>
+      </div>
+      <div style="text-align:center;color:#ddcc44;font-size:14px;margin-top:12px;">Gold: ${GameState.gold}</div>
+      <div style="text-align:center;color:#6b5030;font-size:11px;margin-top:4px;">[ESC] to close</div>
+    </div>`;
+}
+
+function buyShopItem(key, price) {
+  if (GameState.gold < price) return;
+  GameState.gold -= price;
+
+  const def = ITEM_DEFS[key];
+  const inv = GameState.inventory;
+
+  if (def.slot) {
+    // Equipment
+    const slot = inv.findIndex(s => s === null);
+    if (slot !== -1) {
+      inv[slot] = { name: def.name, key: def.key, qty: 1, slot: def.slot, stats: { ...def.stats } };
+    }
+  } else {
+    // Stackable
+    const existing = inv.find(s => s && s.key === key);
+    if (existing) {
+      existing.qty += 1;
+    } else {
+      const slot = inv.findIndex(s => s === null);
+      if (slot !== -1) {
+        const item = { name: def.name, key: def.key, qty: 1 };
+        if (def.consumable) { item.consumable = true; item.healAmount = def.healAmount || 0; }
+        if (def.buff) { item.buff = def.buff; item.buffAmount = def.buffAmount; item.buffDuration = def.buffDuration; item.consumable = true; }
+        inv[slot] = item;
+      }
+    }
+  }
+  _renderShop();
+}
+
+function sellShopItem(idx, price) {
+  const item = GameState.inventory[idx];
+  if (!item) return;
+  GameState.gold += price;
+  item.qty -= 1;
+  if (item.qty <= 0) GameState.inventory[idx] = null;
+  _renderShop();
+}
+
+function hideShopScreen() {
+  _shopOpen = false;
+  const el = document.getElementById('shop-screen');
+  if (el) el.remove();
 }

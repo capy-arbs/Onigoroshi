@@ -36,6 +36,11 @@ class GameScene extends Phaser.Scene {
       this.load.spritesheet(def.key, def.spritePath, { frameWidth: 16, frameHeight: 16 });
     });
 
+    // Boss sprites
+    Object.values(BOSS_TYPES).forEach(def => {
+      this.load.spritesheet(def.key, def.idlePath, { frameWidth: def.frameWidth, frameHeight: def.frameHeight });
+    });
+
     this.load.image('tree',      'assets/tiles/tree.png');
     this.load.image('stump',     'assets/tiles/stump.png');
     this.load.image('wood-item', 'assets/tiles/wood-item.png');
@@ -148,6 +153,32 @@ class GameScene extends Phaser.Scene {
       return new NPC(this, def);
     });
     this.enemies      = area.enemies.map(s => new Enemy(this, s.type, s.x, s.y));
+
+    // ── Boss ─────────────────────────────────────────────────────────
+    this.boss = null;
+    if (area.boss) {
+      const bDef = BOSS_TYPES[area.boss.type];
+      if (bDef) {
+        this.boss = this.physics.add.sprite(area.boss.x, area.boss.y, bDef.key, 0);
+        this.boss.setDepth(5).setCollideWorldBounds(true);
+        if (!this.anims.exists(bDef.key + '-idle')) {
+          const frameCount = Math.floor(this.textures.get(bDef.key).getSourceImage().width / bDef.frameWidth);
+          this.anims.create({
+            key: bDef.key + '-idle',
+            frames: this.anims.generateFrameNumbers(bDef.key, { start: 0, end: frameCount - 1 }),
+            frameRate: 4, repeat: -1,
+          });
+        }
+        this.boss.play(bDef.key + '-idle');
+        this.boss.setData('def', bDef);
+        this.boss.setData('hp', bDef.hp);
+        this.boss.setData('maxHp', bDef.hp);
+
+        // Boss HP bar graphics
+        this.bossHpBg = this.add.graphics();
+        this.bossHpFg = this.add.graphics();
+      }
+    }
     this.trees        = area.trees.map(s => new Tree(this, s.x, s.y));
     this.groundItems  = [];
     this.fishingSpots = (area.fishingSpots || []).map(s => new FishingSpot(this, s.x, s.y));
@@ -233,6 +264,12 @@ class GameScene extends Phaser.Scene {
         return;
       }
 
+      // Shop — open shop screen
+      if (nearbyNPC.def.isShop) {
+        showShopScreen();
+        return;
+      }
+
       this.scene.pause();
       this.scene.launch('DialogScene', {
         name: nearbyNPC.def.name, spriteKey: nearbyNPC.def.key + '-walk', dialog: nearbyNPC.def.dialog,
@@ -260,6 +297,30 @@ class GameScene extends Phaser.Scene {
         }
       }
     });
+
+    // ── Boss contact damage + HP bar ──────────────────────────────
+    if (this.boss && this.boss.active) {
+      const bDef = this.boss.getData('def');
+      // Chase player
+      const bDist = Phaser.Math.Distance.Between(this.boss.x, this.boss.y, this.player.x, this.player.y);
+      if (bDist < bDef.aggroRange) {
+        const angle = Phaser.Math.Angle.Between(this.boss.x, this.boss.y, this.player.x, this.player.y);
+        this.boss.setVelocity(Math.cos(angle) * bDef.speed, Math.sin(angle) * bDef.speed);
+      } else {
+        this.boss.setVelocity(0, 0);
+      }
+      // Contact damage
+      if (bDist < 20 && !this.isInvincible) {
+        this._playerTakeDamage({ def: bDef, sprite: this.boss });
+      }
+      // HP bar
+      const bhp = this.boss.getData('hp'), bmhp = this.boss.getData('maxHp');
+      const bbw = 40, bbh = 3;
+      const bbx = this.boss.x - 20, bby = this.boss.y - 30;
+      this.bossHpBg.clear(); this.bossHpFg.clear();
+      this.bossHpBg.fillStyle(0x440000); this.bossHpBg.fillRect(bbx, bby, bbw, bbh);
+      this.bossHpFg.fillStyle(0xff2222); this.bossHpFg.fillRect(bbx, bby, Math.max(0, (bhp / bmhp) * bbw), bbh);
+    }
 
     // Check for level-up after enemy updates (kills award XP)
     const gained = GameState.checkLevelUp();
@@ -348,6 +409,47 @@ class GameScene extends Phaser.Scene {
           this.sound.play('sfx-chop', { volume: 0.35 });
         }
       });
+
+      // Hit boss within slash radius
+      if (this.boss && this.boss.active) {
+        const bd = Phaser.Math.Distance.Between(hitX, hitY, this.boss.x, this.boss.y);
+        if (bd < SLASH_HIT_RADIUS + 10) {
+          let bhp = this.boss.getData('hp') - GameState.player.attack;
+          this.boss.setData('hp', bhp);
+          this.boss.setTint(0xff6666);
+          this.time.delayedCall(150, () => { if (this.boss && this.boss.active) this.boss.clearTint(); });
+          hitAny = true;
+
+          if (bhp <= 0) {
+            const bDef = this.boss.getData('def');
+            GameState.player.totalExp += bDef.exp;
+            GameState.gold += 100;
+            domFloat(this.boss.x, this.boss.y, 'Oni Lord slain! +100 gold', '#ffcc44');
+            domFloat(this.boss.x, this.boss.y - 20, `+${bDef.exp} XP`, '#ffee44');
+
+            // Quest tracking
+            if (GameState.activeQuest && GameState.activeQuest.goal === 'kill' && GameState.activeQuest.enemy === 'oni-boss') {
+              GameState.activeQuest.progress++;
+            }
+
+            this.tweens.add({
+              targets: this.boss, alpha: 0, duration: 500,
+              onComplete: () => {
+                this.boss.destroy();
+                this.bossHpBg.destroy();
+                this.bossHpFg.destroy();
+                this.boss = null;
+                // Respawn boss after 60 seconds
+                this.time.delayedCall(60000, () => {
+                  if (AREAS[GameState.currentArea].boss) {
+                    // Will respawn on next area enter
+                  }
+                });
+              },
+            });
+          }
+        }
+      }
 
       this.slashSprite = this.add.sprite(hitX, hitY, 'fx-slash');
       this.slashSprite.setAngle(cfg.angle);

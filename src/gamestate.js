@@ -57,6 +57,13 @@ const GameState = {
   // Slayer task: { enemy: 'skull', remaining: 5, xpReward: 50 } or null
   slayerTask: null,
 
+  // Gold (currency for shop)
+  gold: 0,
+
+  // Quest system
+  activeQuest: null,  // { id, progress }
+  completedQuests: [],
+
   skills: {
     woodcutting: { level: 1, totalExp: 0 },
     fishing:     { level: 1, totalExp: 0 },
@@ -166,6 +173,9 @@ const GameState = {
       equipment: this.equipment,
       skills: JSON.parse(JSON.stringify(this.skills)),
       slayerTask: this.slayerTask,
+      gold: this.gold,
+      activeQuest: this.activeQuest,
+      completedQuests: this.completedQuests,
     };
     try {
       localStorage.setItem('onigoroshi-save', JSON.stringify(data));
@@ -191,6 +201,9 @@ const GameState = {
         this.skills[key] = data.skills[key];
       }
       this.slayerTask = data.slayerTask || null;
+      this.gold = data.gold || 0;
+      this.activeQuest = data.activeQuest || null;
+      this.completedQuests = data.completedQuests || [];
 
       // Recalc derived stats from level + equipment
       this.recalcStats();

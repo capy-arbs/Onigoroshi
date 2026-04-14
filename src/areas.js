@@ -19,6 +19,7 @@ const AREAS = {
       { defIndex: 1, x: 270, y: 115 },  // Elder Hiroshi
       { defIndex: 2, x: 180, y: 165 },  // Princess Yuki
       { defIndex: 3, x: 160, y: 80  },  // Demon Hunter Kenji (Slayer Master)
+      { defIndex: 4, x: 270, y: 165 }, // Merchant Tanaka (Shop)
     ],
     enemies: [],
     trees: [
@@ -80,6 +81,67 @@ const AREAS = {
     craftBenches: [],
     exits: {
       south: 'village',
+      west: 'mountain',
+    },
+  },
+
+  mountain: {
+    name: 'Mountain Pass',
+    tile: 'grass', tint: 0x998877,
+    decorations: [],
+    npcs: [],
+    enemies: [
+      { type: 'skull',  x: 60,  y: 60  },
+      { type: 'skull',  x: 250, y: 80  },
+      { type: 'skull',  x: 150, y: 180 },
+      { type: 'spirit', x: 280, y: 200 },
+      { type: 'spirit', x: 40,  y: 150 },
+      { type: 'spirit', x: 200, y: 120 },
+    ],
+    trees: [
+      { x: 30, y: 40 },
+      { x: 290, y: 220 },
+    ],
+    fishingSpots: [],
+    cookingFires: [],
+    miningRocks: [
+      { x: 260, y: 40 },
+      { x: 50, y: 210 },
+    ],
+    anvils: [],
+    shrines: [
+      { x: 160, y: 30 },
+    ],
+    mortars: [],
+    craftBenches: [],
+    exits: {
+      east: 'forest',
+      north: 'boss',
+    },
+  },
+
+  boss: {
+    name: 'Demon Lair',
+    tile: 'grass', tint: 0x553344,
+    decorations: [],
+    npcs: [],
+    enemies: [
+      { type: 'spirit', x: 60,  y: 100 },
+      { type: 'spirit', x: 280, y: 100 },
+      { type: 'spirit', x: 60,  y: 200 },
+      { type: 'spirit', x: 280, y: 200 },
+    ],
+    boss: { type: 'oni-boss', x: 160, y: 80 },
+    trees: [],
+    fishingSpots: [],
+    cookingFires: [],
+    miningRocks: [],
+    anvils: [],
+    shrines: [],
+    mortars: [],
+    craftBenches: [],
+    exits: {
+      south: 'mountain',
     },
   },
 

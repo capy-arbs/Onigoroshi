@@ -50,6 +50,15 @@ const NPC_DEFS = [
     wander: false,
     isSlayerMaster: true,
   },
+  {
+    key: 'merchant',
+    spritePath: NPC_BASE + 'Monk/SeparateAnim/Walk.png',
+    x: 200, y: 100,
+    name: 'Merchant Tanaka',
+    dialog: [],
+    wander: false,
+    isShop: true,
+  },
 ];
 
 // ── NPC class ─────────────────────────────────────────────────────────────────
@@ -70,7 +79,7 @@ class NPC {
     this.wanderTimer = Phaser.Math.Between(500, 2500);
 
     // Interaction prompt (DOM-based)
-    this.promptText = def.isSlayerMaster ? '[E] Talk' : '[E] Talk  [T] Pickpocket';
+    this.promptText = def.isSlayerMaster ? '[E] Talk' : def.isShop ? '[E] Shop' : '[E] Talk  [T] Pickpocket';
     this.promptId = 'npc-' + def.key + '-' + def.x;
     this.promptVisible = false;
   }

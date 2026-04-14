@@ -12,7 +12,8 @@ const ITEM_DEFS = {
   'spirit-essence': { name: 'Spirit Essence', key: 'spirit-essence', path: ITEM_BASE + 'Resource/GemPurple.png' },
   'gold-coin':      { name: 'Gold Coin',      key: 'gold-coin',      path: ITEM_BASE + 'Treasure/GoldCoin.png' },
   'red-gem':        { name: 'Red Gem',        key: 'red-gem',        path: ITEM_BASE + 'Resource/GemRed.png' },
-  'life-potion':    { name: 'Life Potion',    key: 'life-potion',    path: ITEM_BASE + 'Potion/LifePot.png' },
+  'life-potion':    { name: 'Life Potion',    key: 'life-potion',    path: ITEM_BASE + 'Potion/LifePot.png',
+                      consumable: true, healAmount: 40 },
   // Equipment
   'rusty-sword':    { name: 'Rusty Sword',    key: 'rusty-sword',    path: ITEM_BASE + 'Weapons/Sword/Sprite.png',
                       slot: 'weapon',  stats: { attack: 5 } },
@@ -151,6 +152,44 @@ const ENEMY_TYPES = {
     aggroRange: 85, leashRange: 120,
   },
 };
+
+// ── Boss definitions ─────────────────────────────────────────────────────────
+const BOSS_BASE = 'assets/sprites/ninja-adventure/Ninja Adventure - Asset Pack/Actor/Boss/';
+const BOSS_TYPES = {
+  'oni-boss': {
+    key:        'oni-boss',
+    idlePath:   BOSS_BASE + 'DemonCyclop/Idle.png',
+    hp: 300, speed: 30, damage: 35, exp: 200,
+    aggroRange: 150, leashRange: 250,
+    frameWidth: 50, frameHeight: 50,
+    name: 'Oni Lord',
+  },
+};
+
+// ── Shop definitions ─────────────────────────────────────────────────────────
+const SHOP_ITEMS = [
+  { key: 'life-potion',   price: 30 },
+  { key: 'focus-tonic',   price: 50 },
+  { key: 'resolve-salve', price: 50 },
+  { key: 'harmony-tea',   price: 80 },
+  { key: 'rusty-sword',   price: 60 },
+  { key: 'iron-shield',   price: 80 },
+  { key: 'gold-ring',     price: 120 },
+];
+
+// ── Quest definitions ────────────────────────────────────────────────────────
+const QUESTS = [
+  { id: 'q1', name: 'Thin the Herd',       giver: 'Villager',       desc: 'Slay 3 skulls in the forest.',
+    goal: { type: 'kill', enemy: 'skull', count: 3 }, reward: { gold: 50, exp: 30 } },
+  { id: 'q2', name: 'Restless Spirits',     giver: 'Elder Hiroshi',  desc: 'Slay 5 spirits at the shrine.',
+    goal: { type: 'kill', enemy: 'spirit', count: 5 }, reward: { gold: 80, exp: 50 } },
+  { id: 'q3', name: 'Gather Supplies',      giver: 'Princess Yuki',  desc: 'Catch 3 fish for the village.',
+    goal: { type: 'gather', item: 'raw-fish', count: 3 }, reward: { gold: 40, exp: 20 } },
+  { id: 'q4', name: 'Forge a Weapon',       giver: 'Elder Hiroshi',  desc: 'Smith an Iron Sword.',
+    goal: { type: 'craft', item: 'iron-sword', count: 1 }, reward: { gold: 100, exp: 60 } },
+  { id: 'q5', name: 'Slay the Oni Lord',    giver: 'Princess Yuki',  desc: 'Defeat the Oni Lord in the Demon Lair.',
+    goal: { type: 'kill', enemy: 'oni-boss', count: 1 }, reward: { gold: 300, exp: 200 } },
+];
 
 // Where each enemy spawns (keep away from player start at 160,120 and NPCs)
 const ENEMY_SPAWNS = [
@@ -431,6 +470,15 @@ class GroundItem {
     this.picked = true;
     this.despawnTimer.remove(false);
     this.scene.sound.play('sfx-pickup', { volume: 0.4 });
+
+    // Gold coins go to gold balance, not inventory
+    if (this.itemDef.key === 'gold-coin' || this.itemDef.key === 'silver-coin') {
+      const goldAmt = this.itemDef.key === 'gold-coin' ? 10 : 5;
+      GameState.gold += goldAmt;
+      domFloat(this.sprite.x, this.sprite.y - 6, `+${goldAmt} gold`, '#ddcc44');
+      this.sprite.destroy();
+      return;
+    }
 
     // Add to inventory
     const inv = GameState.inventory;
